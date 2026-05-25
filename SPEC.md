@@ -257,29 +257,43 @@ Implementation:
 
 **Verifiability**: every `AgentResult.usage` carries the bucket breakdown (active vs paused vs idle) so customers can reproduce the meter from their side.
 
-### 4.3 Plans + limits (as on the homepage)
+### 4.3 Plans + limits (as on the homepage, updated 2026-05-25)
 
-| Plan | Price | Active hours included | Overage |
-|---|---|---|---|
-| Free | $0 / month | 10 / month | hard stop |
-| Pro | $20 / month | 100 / month | $0.05 / active hour |
-| Scale | custom | reserved pool | volume discount |
+| Plan | Price | Active hours included | Overage | Concurrency | Use case targeted |
+|---|---|---|---|---|---|
+| Free | $0 / month | 100 / month | hard stop | 5 sandboxes | E (individual dev, hackathon) |
+| Pro | $20 / month | 500 / month | $0.01 / active hour | 25 sandboxes | A, B, C (RPA, scraping, QA) |
+| Team | $200 / month | 5,000 / month | TBD | unlimited (fair use) | D (product backend) |
 
-**Implied per-active-second price for Pro:** $20 + 0 hours = $20/100 hr ≈ $0.20/hr ≈ **$0.000056/active second**.
+**Effective per-active-second prices:**
+- Free: $0 (with hard stop at 100 hr)
+- Pro included: $20 / (500 × 3600) = **$0.0000111/s ≈ $0.04/active-hour**
+- Pro overage: $0.01 / 3600 = **$0.00000278/s** — cheaper than the included rate (see anomaly below)
+- Team included: $200 / (5,000 × 3600) = **$0.0000111/s ≈ $0.04/active-hour**
 
-(The homepage's `$0.000333/s ≈ $1.20/active-hour` from the comparison table is **an order of magnitude off** from the Pro plan math above. **Action item: pick one and reconcile across all pages.**)
+The standard task (210 active seconds) on Pro included pricing costs about $0.0023 — well below the "$0.01 per standard task" headline. The headline number ($0.01) is a marketing round-up that gives us a buffer at lower volumes; the actual per-task price for Pro customers at high volume is closer to $0.002, which is even better.
 
-### 4.4 The "60% cheaper than Browserbase" math, audited
+### 4.4 The "10× cheaper than Browserbase" math (updated)
 
-The vs/browserbase page assumes an 8-min task with 35% agent-active time:
+The vs/browserbase page now uses the **standard agent task** baseline:
 
-- Browserbase: 8min × $0.10/hr = $0.0133 + $0.20 storage + $0.05 proxy = **$0.27**
-- Us: 168 active seconds × $0.000333/s = $0.056 + storage included + proxy included = **$0.06**
-- Ratio: **4.5×**, which is **78% cheaper**, not 60%.
+> 10 minutes of browser uptime · 30 LLM decision steps · 1 CAPTCHA solve
 
-**Action items:**
-- Either tighten the "60% cheaper" to "60-78% cheaper" and footnote the scenario, OR pick a more conservative scenario (e.g., 50% active) where the math comes out closer to 60%.
-- Make sure the $0.000333/s rate matches the Pro plan's effective rate. Currently it doesn't.
+Math:
+- Browserbase: 10 min × $0.10/hr browser + $0.05 storage + $0.03 proxy + $0.003 CAPTCHA ≈ **$0.10**
+- Us: 210 active seconds × $0.0000111/s (Pro included) ≈ $0.0023, rounded to **$0.01** for marketing simplicity (includes a buffer for low-volume customers below the included tier)
+- Ratio: **~10× cheaper** for typical agent workloads. Sensible round number used across the site.
+- For pure CDP scraping (100% active), the gap shrinks toward ~15% — site documents this honestly.
+
+### 4.5 Open pricing anomaly to resolve
+
+The Pro plan's **overage rate ($0.01/hour) is cheaper than the included rate ($0.04/hour)**. Most pricing structures have overage be more expensive than included, to incentivize predictable spend. The current structure incentivizes the opposite — buy Pro, then drive usage hard.
+
+This is either:
+- (a) intentional — a loyalty curve where heavy users pay less per unit
+- (b) a typo in the original spec — should be $0.04 or $0.05 per overage hour
+
+Recommendation: **change overage to $0.04/active-hour** (matches included rate, predictable). If we deliberately want loyalty pricing, we should price-test it explicitly.
 
 ---
 
@@ -456,12 +470,20 @@ To prevent scope creep, we are NOT building:
 
 ## Appendix A — Inconsistencies between marketing copy and this spec
 
-To fix before any of the marketing claims hit production:
+Updated 2026-05-25 after the use-case-first IA pivot.
 
-1. **Pricing rate**: $0.000333/s on the comparison table vs $0.000056/s implied by the $20/100-hr Pro plan. Pick one.
-2. **"60% cheaper"** vs the actual 78% from the comparison math. Tighten or rescenario.
-3. **Free tier is "10 hours / month"** in two places, but the SoftwareApplication JSON-LD says "10 active hours per month, free forever." OK — they agree, but make sure new copy doesn't drift.
-4. **"2-second cold start"** is a p95 claim, but the homepage trust line says "2s cold start" as if it's the typical. Either qualify or own the harder p99 number.
-5. **"Apache-2.0 runtime"** is referenced as if the runtime exists. The runtime repo (`computeruse-dev/runtime`) is not yet created. Either create the empty repo with the planned README, or soften to "Apache-2.0 runtime · coming Q3".
+**Resolved (no longer marketing risks):**
+
+- ~~Pricing rate mismatch~~ — reconciled. New Pro/Team rate is $0.0000111/s (≈ $0.04/hour). Standard task headline ($0.01) is a marketing round-up that builds in buffer.
+- ~~"60% cheaper" claim~~ — replaced everywhere with "~10× cheaper on a standard agent task" backed by transparent math.
+- ~~Free tier amount~~ — bumped from 10 to 100 active hours/month; consistent across homepage, FAQ, JSON-LD, and SDK README.
+
+**Still open:**
+
+1. **Pro overage rate is cheaper than included rate** (see §4.5). Recommend changing overage from $0.01/hour to $0.04/hour to match the included rate.
+2. **"2-second cold start"** is a p95 claim, but the homepage presents it as typical. Either qualify in copy ("p95 1.8s") or commit to making it the median.
+3. **`computeruse-dev/runtime` repo doesn't exist yet** — homepage footer and SDK README both link to it. Either create the empty repo now with a stub README, or soften to "runtime · open-sourcing in M5".
+4. **Standard task definition** is now consistent across homepage, all three /vs/ pages, and this spec: 10 min browser + 30 LLM steps + 1 CAPTCHA solve. Make sure new copy doesn't drift from this baseline — every pricing claim should be referenceable back to it.
+5. **Browserbase Sessions API compatibility** is claimed across the homepage and the /vs/browser-use page. The shim package (`computeruse.browserbase_compat`) is sketched in the SDK but not yet implemented. Either build a minimal shim in the M1-M2 window, or remove the claim from the homepage until M3.
 
 These are not bugs — they're the gap between marketing and engineering reality that the spec exists to close.
